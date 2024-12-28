@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -31,8 +32,14 @@ func main() {
 			"Loglevel")
 		ignoreIndividuals = flag.String("openvpn.ignore-individuals", "false",
 			"If ignoring metrics for individuals")
+		showVersion = flag.Bool("version", false, "Show version and exit")
 	)
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("OpenVPN Exporter Version: %s, Commit: %s, Build Time: %s\n", Version, Commit, BuildTime)
+		os.Exit(0)
+	}
 
 	// log build information
 	log.Printf("INFO: Starting OpenVPN Exporter %s, commit %s, built at %s", Version, Commit, BuildTime)
