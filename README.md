@@ -48,9 +48,9 @@ You can use the following flags to configure the exporter. All flags can also be
 | Flag                         | Environment Variable         | Description                                                                                     | Default                       |
 | ---------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
 | `openvpn.loglevel`           | `OPENVPN_LOGLEVEL`           | Log level (debug, info)                                                                         | `info`                        |
-| `openvpn.status-files`       | `OPENVPN_STATUS_FILE`        | Path to OpenVPN status file                                                                     | `/var/log/openvpn-status.log` |
+| `openvpn.status-files`       | `OPENVPN_STATUS_FILES`       | Path to OpenVPN status file. Can be a comma separated list                                      | `/var/log/openvpn-status.log` |
 | `openvpn.metrics-path`       | `OPENVPN_METRICS_PATH`       | Path under which to expose metrics                                                              | `/metrics`                    |
-| `openvpn.web.listen-address` | `OPENVPN_LISTEN_ADDRESS`     | Address to listen on for web interface and telemetry                                            | `:9176`                       |
+| `openvpn.listen-address`     | `OPENVPN_LISTEN_ADDRESS`     | Address to listen on for web interface and telemetry                                            | `:9176`                       |
 | `openvpn.ignore-individuals` | `OPENVPN_IGNORE_INDIVIDUALS` | Don't export following labels: `connection_time`, `real_address`, `virtual_address`, `username` | `false`                       |
 
 ## Release
