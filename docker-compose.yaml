@@ -1,0 +1,10 @@
+services:
+  openvpn-exporter:
+    image: ghcr.io/natrontech/openvpn-exporter:latest
+    container_name: openvpn-exporter
+    user: '65534'
+    restart: always
+    ports:
+      - "9999:9999"
+    environment:
+      - OPENVPN_STATUS_FILE=/var/log/openvpn-status.log

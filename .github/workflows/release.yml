@@ -1,0 +1,182 @@
+name: goreleaser
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  goreleaser:
+    outputs:
+      hashes: ${{ steps.binary.outputs.hashes }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write # sign archives with cosign
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Update goreportcard
+        uses: creekorful/goreportcard-action@1f35ced8cdac2cba28c9a2f2288a16aacfd507f9 # v1.0
+      - name: Setup go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+          cache: false
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@df80a981bc6edbc4e220a492d3cbe9f5547a6e75 # v0.17.9
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+      - name: Run GoReleaser
+        id: goreleaser
+        uses: goreleaser/goreleaser-action@9ed2f89a662bf1735a48bc8557fd212fa902bebf # v6.1.0
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate binary hashes
+        id: binary
+        env:
+          ARTIFACTS: "${{ steps.goreleaser.outputs.artifacts }}"
+        run: |
+          set -euo pipefail
+          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
+          echo "hashes=$(cat $checksum_file | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+  ko-publish:
+    outputs:
+      digest: ${{ steps.release.outputs.digest }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write # sign archives with cosign
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+          cache: false
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+      - name: Publish openvpn-exporter
+        id: release
+        uses: ./.github/actions/publish-image
+        with:
+          makefile-target: ko-publish
+          registry: ghcr.io
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository_owner }}
+          version: ${{ github.ref_name }}
+          sign-image: true
+          sbom-name: openvpn-exporter
+          sbom-repository: ghcr.io/${{ github.repository_owner }}/sbom
+          signature-repository: ghcr.io/${{ github.repository_owner }}/signatures
+          main-path: ./
+
+  binary-provenance:
+    needs: [goreleaser]
+    permissions:
+      actions: read # To read the workflow path.
+      id-token: write # To sign the provenance (fetch an OIDC token from GitHub)
+      contents: write # To add assets to a release.
+    # MUST be referenced by tag (see https://github.com/slsa-framework/slsa-github-generator/?tab=readme-ov-file#referencing-slsa-builders-and-generators)
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
+      upload-assets: true # upload to a new release
+      draft-release: true
+
+  image-provenance:
+    needs: [ko-publish]
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    # MUST be referenced by tag (see https://github.com/slsa-framework/slsa-github-generator/?tab=readme-ov-file#referencing-slsa-builders-and-generators)
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: ghcr.io/${{ github.repository_owner }}/openvpn-exporter
+      digest: ${{ needs.ko-publish.outputs.digest }}
+      registry-username: ${{ github.actor }}
+      provenance-registry-username: ${{ github.actor }}
+      provenance-repository: ghcr.io/${{ github.repository_owner }}/signatures
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+      provenance-registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  verification-with-cosign:
+    needs: [ko-publish, image-provenance]
+    runs-on: ubuntu-latest
+    permissions: read-all
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Login
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+
+      - name: Verify provenance of image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/openvpn-exporter
+          DIGEST: ${{ needs.ko-publish.outputs.digest }}
+          REPOSITORY: ${{ github.repository_owner }}
+        run: |
+          COSIGN_REPOSITORY=ghcr.io/$REPOSITORY/signatures cosign verify-attestation \
+            --type slsaprovenance \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+$' \
+            --policy policy.cue \
+            $IMAGE@$DIGEST
+
+      - name: Verify signature of image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/openvpn-exporter
+          DIGEST: ${{ needs.ko-publish.outputs.digest }}
+          REPOSITORY: ${{ github.repository_owner }}
+        run: |
+          COSIGN_REPOSITORY=ghcr.io/$REPOSITORY/signatures cosign verify \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
+            $IMAGE@$DIGEST
+
+      - name: Verify sbom of image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/openvpn-exporter
+          DIGEST: ${{ needs.ko-publish.outputs.digest }}
+          REPOSITORY: ${{ github.repository_owner }}
+        run: |
+          COSIGN_REPOSITORY=ghcr.io/$REPOSITORY/sbom cosign verify-attestation \
+            --type cyclonedx \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
+            --policy policy-sbom.cue \
+            $IMAGE@$DIGEST
