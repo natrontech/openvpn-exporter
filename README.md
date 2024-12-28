@@ -13,12 +13,29 @@ Export [OpenVPN Community](https://openvpn.net/community-downloads/) statistics 
 
 Metrics are retrieved using the OpenVPN Status file.
 
+## Credits
+
+This project is based on the [OpenVPN Exporter](https://github.com/kumina/openvpn_exporter) by [Kumina](https://www.kumina.nl/).
+
 ## Exported Metrics
 
-| Metric          | Meaning                                            | Labels                         |
-| --------------- | -------------------------------------------------- | ------------------------------ |
-| openvpn_up      | Was the last query of OpenVPN Exporter successful? |                                |
-| openvpn_version | Version of OpenVPN Exporter                        | `version`, `repoid`, `release` |
+| Metric                                           | Meaning                                                                | Labels                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| openvpn_up                                       | Whether scraping OpenVPN's metrics was successful.                     | `status_path`                                                                                 |
+| openvpn_status_update_time_seconds               | UNIX timestamp at which the OpenVPN statistics were updated.           | `status_path`                                                                                 |
+| openvpn_server_connected_clients                 | Number Of Connected Clients                                            | `status_path`                                                                                 |
+| openvpn_server_client_received_bytes_total       | Amount of data received over a connection on the VPN server, in bytes. | `status_path`, `common_name`, `connection_time` `real_address`, `virtual_address`, `username` |
+| openvpn_server_client_sent_bytes_total           | Amount of data sent over a connection on the VPN server, in bytes.     | `status_path`, `common_name`, `connection_time` `real_address`, `virtual_address`, `username` |
+| openvpn_server_route_last_reference_time_seconds | Time at which a route was last referenced, in seconds.                 | `status_path`, `common_name`, `real_address` `virtual_address`                                |
+| openvpn_client_tun_tap_read_bytes_total          | Total amount of TUN/TAP traffic read, in bytes.                        | `status_path`                                                                                 |
+| openvpn_client_tun_tap_write_bytes_total         | Total amount of TUN/TAP traffic written, in bytes.                     | `status_path`                                                                                 |
+| openvpn_client_tcp_udp_read_bytes_total          | Total amount of TCP/UDP traffic read, in bytes.                        | `status_path`                                                                                 |
+| openvpn_client_tcp_udp_write_bytes_total         | Total amount of TCP/UDP traffic written, in bytes.                     | `status_path`                                                                                 |
+| openvpn_client_auth_read_bytes_total             | Total amount of authentication traffic read, in bytes.                 | `status_path`                                                                                 |
+| openvpn_client_pre_compress_bytes_total          | Total amount of data before compression, in bytes.                     | `status_path`                                                                                 |
+| openvpn_client_post_compress_bytes_total         | Total amount of data after compression, in bytes.                      | `status_path`                                                                                 |
+| openvpn_client_pre_decompress_bytes_total        | Total amount of data before decompression, in bytes.                   | `status_path`                                                                                 |
+| openvpn_client_post_decompress_bytes_total       | Total amount of data after decompression, in bytes.                    | `status_path`                                                                                 |
 
 ## Flags / Environment Variables
 
@@ -28,13 +45,14 @@ $ ./openvpn-exporter -help
 
 You can use the following flags to configure the exporter. All flags can also be set using environment variables. Environment variables take precedence over flags.
 
-| Flag                         | Environment Variable     | Description                                          | Default                       |
-| ---------------------------- | ------------------------ | ---------------------------------------------------- | ----------------------------- |
-| `openvpn.loglevl`            | `OPENVPN_LOGLEVEL`       | Log level (debug, info)                              | `info`                        |
-| `openvpn.status-file`        | `OPENVPN_STATUS_FILE`    | Path to OpenVPN status file                          | `/var/log/openvpn-status.log` |
-| `openvpn.metrics-path`       | `OPENVPN_METRICS_PATH`   | Path under which to expose metrics                   | `/metrics`                    |
-| `openvpn.web.listen-address` | `OPENVPN_LISTEN_ADDRESS` | Address to listen on for web interface and telemetry | `:9999`                       |
-|                              |                          |                                                      |                               |
+| Flag                         | Environment Variable         | Description                                                                                     | Default                       |
+| ---------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
+| `openvpn.loglevel`           | `OPENVPN_LOGLEVEL`           | Log level (debug, info)                                                                         | `info`                        |
+| `openvpn.status-files`       | `OPENVPN_STATUS_FILE`        | Path to OpenVPN status file                                                                     | `/var/log/openvpn-status.log` |
+| `openvpn.metrics-path`       | `OPENVPN_METRICS_PATH`       | Path under which to expose metrics                                                              | `/metrics`                    |
+| `openvpn.web.listen-address` | `OPENVPN_LISTEN_ADDRESS`     | Address to listen on for web interface and telemetry                                            | `:9176`                       |
+| `openvpn.ignore-individuals` | `OPENVPN_IGNORE_INDIVIDUALS` | Don't export following labels: `connection_time`, `real_address`, `virtual_address`, `username` | `false`                       |
+
 ## Release
 
 Each release of the application includes Go-binary archives, checksums file, SBOMs and container images. 

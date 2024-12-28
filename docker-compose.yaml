@@ -5,6 +5,6 @@ services:
     user: '65534'
     restart: always
     ports:
-      - "9999:9999"
+      - "9176:9176"
     environment:
       - OPENVPN_STATUS_FILE=/var/log/openvpn-status.log

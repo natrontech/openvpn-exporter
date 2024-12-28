@@ -5,72 +5,33 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/natrontech/openvpn-exporter/exporters"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-const promNamespace = "openvpn"
 
 // These variables are set in build step
 var Version = "v0.0.0-dev.0"
 var Commit = "none"
 var BuildTime = "unknown"
 
-var (
-	// Flags
-	statusfile = flag.String("status-file", "/var/run/openvpn-status.log",
-		"Path to OpenVPN status file")
-	metricsPath = flag.String("openvpn.metrics-path", "/metrics",
-		"Path under which to expose metrics")
-	listenAddress = flag.String("openvpn.listen-address", ":9999",
-		"Address on which to expose metrics")
-	loglevel = flag.String("openvpn.loglevel", "info",
-		"Loglevel")
-
-	// Metrics
-	up = prometheus.NewDesc(
-		prometheus.BuildFQName(promNamespace, "", "up"),
-		"Was the last query of OpenVPN Exporter successful.",
-		nil, nil,
-	)
-)
-
-type Exporter struct {
-	statusfile string
-}
-
-func NewExporter(statusfile string) *Exporter {
-	return &Exporter{
-		statusfile: statusfile,
-	}
-}
-
-func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- up
-}
-
-func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	err := e.collectFromAPI(ch)
-	if err != nil {
-		ch <- prometheus.MustNewConstMetric(
-			up, prometheus.GaugeValue, 0,
-		)
-		log.Println(err)
-		return
-	}
-	ch <- prometheus.MustNewConstMetric(
-		up, prometheus.GaugeValue, 1,
-	)
-}
-
-func (e *Exporter) collectFromAPI(ch chan<- prometheus.Metric) error {
-
-	return nil
-}
-
 func main() {
+	var (
+		statusfiles = flag.String("openvpn.status-files", "/var/run/openvpn-status.log",
+			"Path to OpenVPN status files")
+		metricsPath = flag.String("openvpn.metrics-path", "/metrics",
+			"Path under which to expose metrics")
+		listenAddress = flag.String("openvpn.listen-address", ":9176",
+			"Address on which to expose metrics")
+		loglevel = flag.String("openvpn.loglevel", "info",
+			"Loglevel")
+		ignoreIndividuals = flag.String("openvpn.ignore-individuals", "false",
+			"If ignoring metrics for individuals")
+	)
 	flag.Parse()
 
 	// log build information
@@ -80,8 +41,8 @@ func main() {
 	if os.Getenv("OPENVPN_LOGLEVEL") != "" {
 		*loglevel = os.Getenv("OPENVPN_LOGLEVEL")
 	}
-	if os.Getenv("OPENVPN_STATUS_FILE") != "" {
-		*statusfile = os.Getenv("OPENVPN_STATUS_FILE")
+	if os.Getenv("OPENVPN_STATUS_FILES") != "" {
+		*statusfiles = os.Getenv("OPENVPN_STATUS_FILES")
 	}
 	if os.Getenv("OPENVPN_METRICS_PATH") != "" {
 		*metricsPath = os.Getenv("OPENVPN_METRICS_PATH")
@@ -89,32 +50,43 @@ func main() {
 	if os.Getenv("OPENVPN_LISTEN_ADDRESS") != "" {
 		*listenAddress = os.Getenv("OPENVPN_LISTEN_ADDRESS")
 	}
+	if os.Getenv("OPENVPN_IGNORE_INDIVIDUALS") != "" {
+		*ignoreIndividuals = os.Getenv("OPENVPN_IGNORE_INDIVIDUALS")
+	}
+
+	// convert flags
+	ignoreIndividualsBool, err := strconv.ParseBool(*ignoreIndividuals)
+	if err != nil {
+		log.Fatalf("ERROR: Unable to parse ignoreIndividuals: %s", err)
+	}
+
+	files := strings.Split(*statusfiles, ",")
+
+	// check if statusfile exists
+	for _, file := range files {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			log.Fatalf("ERROR: Status file does not exist: %s", file)
+		}
+	}
 
 	// debug
 	if *loglevel == "debug" {
-		log.Printf("DEBUG: Using status file: %s", *statusfile)
+		log.Printf("DEBUG: Using status files: %s", *statusfiles)
 		log.Printf("DEBUG: Using metrics path: %s", *metricsPath)
 		log.Printf("DEBUG: Using listen address: %s", *listenAddress)
+		log.Printf("DEBUG: Ignoring individuals: %t", ignoreIndividualsBool)
 	}
 
 	log.Printf("INFO: Listening on: %s", *listenAddress)
 	log.Printf("INFO: Metrics path: %s", *metricsPath)
 
-	// start http server
-	http.HandleFunc(*metricsPath, func(w http.ResponseWriter, r *http.Request) {
+	exporter, err := exporters.NewOpenVPNExporter(files, ignoreIndividualsBool)
+	if err != nil {
+		panic(err)
+	}
+	prometheus.MustRegister(exporter)
 
-		exporter := NewExporter(*statusfile)
-
-		// catch if register of exporter fails
-		err := prometheus.Register(exporter)
-		if err != nil {
-			// if register fails, we log the error and return
-			log.Printf("ERROR: %s", err)
-		}
-		promhttp.Handler().ServeHTTP(w, r) // Serve the metrics
-		prometheus.Unregister(exporter)    // Clean up after serving
-	})
-
+	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		_, err := w.Write([]byte(`<html>
 			<head><title>OpenVPN Exporter</title></head>
