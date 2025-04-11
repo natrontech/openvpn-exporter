@@ -337,7 +337,11 @@ func (e *OpenVPNExporter) collectStatusFromFile(statusPath string, ch chan<- pro
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("ERROR: Failed to close file: %s", err)
+		}
+	}()
 	return e.collectStatusFromReader(statusPath, conn, ch)
 }
 
