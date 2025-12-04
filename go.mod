@@ -1,6 +1,6 @@
 module github.com/natrontech/openvpn-exporter
 
-go 1.25.4
+go 1.25.5
 
 require github.com/prometheus/client_golang v1.23.2
 
