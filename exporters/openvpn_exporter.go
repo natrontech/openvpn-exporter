@@ -305,7 +305,7 @@ func (e *OpenVPNExporter) collectClientStatusFromReader(statusPath string, file 
 		} else if fields[0] == "Updated" && len(fields) == 2 {
 			// Time at which the statistics were updated.
 			location, _ := time.LoadLocation("Local")
-			timeParser, err := time.ParseInLocation("Mon Jan 2 15:04:05 2006", fields[1], location)
+			timeParser, err := time.ParseInLocation("2006-01-02 15:04:05", fields[1], location)
 			if err != nil {
 				return err
 			}
