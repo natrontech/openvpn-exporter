@@ -48,17 +48,6 @@ checksum:
   name_template: 'checksums.txt'
   algorithm: sha256
 
-# sign checksum file (cosign keyless)
-signs:
-  - cmd: cosign
-    args:
-    - "sign-blob"
-    - "--bundle=${signature}"
-    - "${artifact}"
-    - "--yes"
-    artifacts: checksum
-    signature: "${artifact}.sigstore.json"
-
 release:
   # allow pre-release versions (e.g. by tagging with v1.0.0-rc0)
   prerelease: auto

@@ -47,6 +47,15 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign checksums.txt
+        env:
+          ARTIFACTS: "${{ steps.goreleaser.outputs.artifacts }}"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
+          cosign sign-blob --bundle "${checksum_file}.sigstore.json" "$checksum_file" --yes
+          gh -R "$GITHUB_REPOSITORY" release upload "$GITHUB_REF_NAME" "${checksum_file}.sigstore.json" --clobber
       - name: Generate binary hashes
         id: binary
         env:
