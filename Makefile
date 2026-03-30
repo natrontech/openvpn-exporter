@@ -17,7 +17,7 @@ DESCRIPTION ?= Export OpenVPN metrics for Prometheus
 
 .PHONY: go-tidy
 go-tidy:
-	go mod tidy -compat=1.25
+	go mod tidy -compat=1.26
 	@echo "Go modules tidied."
 
 .PHONY: go-update
