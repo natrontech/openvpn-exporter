@@ -10,7 +10,12 @@ The contributor will send a response indicating the next steps in handling your 
 
 ## Release verification
 
-The release workflow creates provenance for its builds using the [SLSA standard](https://slsa.dev), which conforms to the [Level 3 specification](https://slsa.dev/spec/v1.0/levels#build-l3). The provenance is stored in the `multiple.intoto.jsonl` file of each release and can be used to verify the integrity and authenticity of the release artifacts.
+The release workflow creates provenance for its builds using the [SLSA standard](https://slsa.dev), which conforms to the [Level 3 specification](https://slsa.dev/spec/v1.2/levels#build-l3).
+
+> [!NOTE]
+> **Verification by release version**
+> - **v1.2.0+**: Signatures and SBOM attestations are stored as OCI 1.1 referrers in the image repository. Use the commands in this document.
+> - **≤ v1.1.6**: Signatures and SBOM attestations were stored in separate repositories. See [Legacy verification](#legacy-verification--v116). The provenance is stored in the `multiple.intoto.jsonl` file of each release and can be used to verify the integrity and authenticity of the release artifacts.
 
 All signatures are created by [Cosign](https://github.com/sigstore/cosign) using the [keyless signing](https://docs.sigstore.dev/cosign/verifying/verify/#keyless-verification-using-openid-connect) method. An overview how the keyless signing works can be found [here](./docs/slsa/sigstore/).
 
@@ -79,7 +84,6 @@ IMAGE="${IMAGE}@"$(crane digest "${IMAGE}")
 # verify the image
 slsa-verifier verify-image \
   --source-uri github.com/natrontech/openvpn-exporter \
-  --provenance-repository ghcr.io/natrontech/signatures \
   --source-versioned-tag $VERSION \
   $IMAGE
 ```
@@ -94,8 +98,8 @@ As an alternative to the SLSA verifier, you can use `cosign` to verify the prove
 # download policy.cue
 curl -L -O https://raw.githubusercontent.com/natrontech/openvpn-exporter/main/policy.cue
 
-# verify the image with cosign (at the moment use `--new-bundle-format=false` as the new format is not yet supported for SLSA provenance)
-COSIGN_REPOSITORY=ghcr.io/natrontech/signatures cosign verify-attestation \
+# verify the image with cosign (use `--new-bundle-format=false` as the new format is not yet supported for SLSA provenance)
+cosign verify-attestation \
   --type slsaprovenance \
   --new-bundle-format=false \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -110,7 +114,7 @@ The container images are additionally signed with cosign. The signature can be v
 **Important**: only the multi-arch image is signed, not the individual platform images.
 
 ```bash
-COSIGN_REPOSITORY=ghcr.io/natrontech/signatures cosign verify \
+cosign verify --new-bundle-format \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
   $IMAGE | jq
@@ -150,7 +154,7 @@ The SBOMs of the Go binary archives are provided in the `*.tar.gz.sbom.json` fil
 
 #### Container images
 
-The SBOMs of the container is attestated with Cosign and uploaded to the `ghcr.io/natrontech/sbom` repository. The SBOMs can be verified with the `cosign` binary.
+The SBOMs of the container are attested with Cosign and stored as OCI 1.1 referrers in the image repository. The SBOMs can be verified with the `cosign` binary.
 
 **Important**: Only the multi-arch image has a SBOM, not the individual platform images.
 
@@ -160,7 +164,7 @@ The SBOMs of the container is attestated with Cosign and uploaded to the `ghcr.i
 # download policy-sbom.cue
 curl -L -O https://raw.githubusercontent.com/natrontech/openvpn-exporter/main/policy-sbom.cue
 
-COSIGN_REPOSITORY=ghcr.io/natrontech/sbom cosign verify-attestation \
+cosign verify-attestation --new-bundle-format \
   --type cyclonedx \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
@@ -173,10 +177,41 @@ COSIGN_REPOSITORY=ghcr.io/natrontech/sbom cosign verify-attestation \
 If you want to download the SBOM of the container image, you can use the following command:
 
 ```bash
-COSIGN_REPOSITORY=ghcr.io/natrontech/sbom cosign verify-attestation \
+cosign verify-attestation --new-bundle-format \
   --type cyclonedx \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
   --policy policy-sbom.cue \
   $IMAGE | jq -r '.payload' | base64 -d | jq -r '.predicate' > sbom.json
+```
+
+## Legacy verification (≤ v1.1.6)
+
+For releases v1.1.6 and earlier, signatures and SBOM attestations were stored in separate OCI repositories.
+
+**Verify image signature**
+```bash
+COSIGN_REPOSITORY=ghcr.io/natrontech/signatures cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
+  $IMAGE | jq
+```
+
+**Verify SBOM**
+```bash
+COSIGN_REPOSITORY=ghcr.io/natrontech/sbom cosign verify-attestation \
+  --type cyclonedx \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/natrontech/openvpn-exporter/.github/workflows/release.yml@refs/tags/v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?$' \
+  --policy policy-sbom.cue \
+  $IMAGE | jq -r '.payload' | base64 -d | jq
+```
+
+**Verify image with SLSA verifier (legacy)**
+```bash
+slsa-verifier verify-image \
+  --source-uri github.com/natrontech/openvpn-exporter \
+  --provenance-repository ghcr.io/natrontech/signatures \
+  --source-versioned-tag $VERSION \
+  $IMAGE
 ```
