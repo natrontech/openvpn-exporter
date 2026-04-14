@@ -49,11 +49,11 @@ jobs:
     - if: matrix.build-mode == 'manual'
       env:
         # fix "go: download go1.22 for linux/amd64: toolchain not available" error
-        GOTOOLCHAIN: "go1.26.1"
+        GOTOOLCHAIN: "go1.26.2"
       run: |
         make go-build
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@fe4161a26a8629af62121b670040955b330f9af2 # v4.31.6
+      uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
       with:
         category: "/language:${{matrix.language}}"

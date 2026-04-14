@@ -35,7 +35,7 @@ go-build:
 # TOOLS #
 #########
 
-KO_VERSION  = v0.18.0
+KO_VERSION  = v0.18.1
 KO = $(shell pwd)/bin/ko
 
 ko:
