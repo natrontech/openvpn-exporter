@@ -23,15 +23,15 @@ go mod tidy
 Edit [go.mod](go.mod) and bump the `go` directive:
 
 ```
-go 1.26.2
+go 1.27.1
 ```
 
 ### 3. Update hardcoded GOTOOLCHAIN in workflows
 
 Two workflows hardcode the toolchain version and must be updated manually:
 
-- [.github/workflows/codeql.yml](.github/workflows/codeql.yml) — `GOTOOLCHAIN: "go1.26.2"`
-- [.github/workflows/gosec.yml](.github/workflows/gosec.yml) — `GOTOOLCHAIN: "go1.26.2"`
+- [.github/workflows/codeql.yml](.github/workflows/codeql.yml) — `GOTOOLCHAIN: "go1.27.1"`
+- [.github/workflows/gosec.yml](.github/workflows/gosec.yml) — `GOTOOLCHAIN: "go1.27.1"`
 
 The following workflows use `go-version-file: 'go.mod'` and pick up the version automatically — no changes needed:
 
@@ -43,7 +43,7 @@ The following workflows use `go-version-file: 'go.mod'` and pick up the version 
 [Makefile](Makefile) line 15 has a hardcoded `-compat` flag:
 
 ```makefile
-go mod tidy -compat=1.26
+go mod tidy -compat=1.27
 ```
 
 Update this when the `major.minor` version changes (not needed for patch-only bumps).
@@ -53,7 +53,7 @@ Update this when the `major.minor` version changes (not needed for patch-only bu
 [Makefile](Makefile) hardcodes the ko version:
 
 ```makefile
-KO_VERSION  = v0.18.1
+KO_VERSION  = v0.19.1
 ```
 
 Check the latest release and update the version:
@@ -64,7 +64,17 @@ gh release view --repo google/ko --json tagName -q '.tagName'
 
 Then update `KO_VERSION` in [Makefile](Makefile) accordingly.
 
-### 6. Update GitHub Actions versions
+### 6. Refresh the pinned base image digest in .ko.yaml
+
+[.ko.yaml](.ko.yaml) pins `defaultBaseImage` by digest. Dependabot cannot update ko config, so refresh the digest manually on every dependency-update pass:
+
+```bash
+crane digest cgr.dev/chainguard/static:latest
+```
+
+Replace the `@sha256:...` digest in [.ko.yaml](.ko.yaml) with the output.
+
+### 7. Update GitHub Actions versions
 
 All workflow files under [.github/workflows/](.github/workflows/) pin actions by commit SHA with a tag comment, e.g.:
 
@@ -111,7 +121,7 @@ Actions used across the workflows:
 | `slsa-framework/slsa-github-generator` | release.yml (**tag only**) |
 | `slsa-framework/slsa-verifier` | release-verification.yml |
 
-### 7. Update pre-commit hooks
+### 8. Update pre-commit hooks
 
 [.pre-commit-config.yaml](.pre-commit-config.yaml) pins the `rev` of each hook repository. Update all revisions to their latest tags:
 
@@ -125,7 +135,7 @@ This updates the `rev` fields for all four repos in [.pre-commit-config.yaml](.p
 - `dnephin/pre-commit-golang`
 - `golangci/golangci-lint`
 
-### 8. Verify
+### 9. Verify
 
 ```bash
 go build ./...
