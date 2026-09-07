@@ -39,22 +39,9 @@ updates:
       - "go"
     open-pull-requests-limit: 10
 
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      time: "06:00"
-      timezone: "Europe/Zurich"
-    cooldown:
-      default-days: 7
-    commit-message:
-      prefix: ":robot:"
-    labels:
-      - "dependencies"
-      - "docker"
-    open-pull-requests-limit: 5
-
+  # No "docker" ecosystem: images are built with ko (no Dockerfile), and the
+  # updater fails hard when it finds no Dockerfile/Kubernetes YAML.
+  # The ko base image in .ko.yaml is digest-pinned and refreshed manually.
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
