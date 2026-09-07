@@ -1,8 +1,11 @@
-defaultBaseImage: cgr.dev/chainguard/static
+# Pinned by digest (multi-arch index) for supply-chain integrity.
+# Refresh with: crane digest cgr.dev/chainguard/static:latest
+defaultBaseImage: cgr.dev/chainguard/static@sha256:f51c2493951313c3ad4069080b2814ffb6ed6fe3909dabeb84a9482f42d5600b
 defaultPlatforms:
 # possible values: all, linux/s390x, linux/arm64, linux/arm/v7, linux/ppc64le, linux/amd64
+# (linux/arm/v7 removed: cgr.dev/chainguard/static only ships amd64 + arm64,
+# so ko already skipped it in published images)
 - linux/arm64
-- linux/arm/v7
 - linux/amd64
 builds:
 - id: openvpn-exporter

@@ -1,7 +1,10 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # "/" only covers .github/workflows; composite actions must be listed explicitly
+    directories:
+      - "/"
+      - "/.github/actions/publish-image"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -37,6 +40,22 @@ updates:
     open-pull-requests-limit: 10
 
   - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "06:00"
+      timezone: "Europe/Zurich"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ":robot:"
+    labels:
+      - "dependencies"
+      - "docker"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "weekly"
